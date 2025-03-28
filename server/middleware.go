@@ -6,7 +6,9 @@ Author: Your Name
 
 package server
 
-import "net/http"
+import (
+	"net/http"
+)
 
 // Middleware defines the type for middleware functions that wrap http.Handler.
 type Middleware func(http.Handler) http.HandlerFunc
@@ -42,18 +44,21 @@ func (api *MyAPIServer) AddMiddlewareN(middleware MiddlewareN) {
 		api.Logger.Fatalf("You need to call this function AddMiddleware as HandlerNew flag is set to %v", api.HandlerNew)
 		return
 	}
-	middlewareCN := MiddlewareWrapperN(middleware)
+	middlewareCN := api.MiddlewareWrapperN(middleware)
 	api.Serv.MiddlewareListN = append(api.Serv.MiddlewareListN, middlewareCN)
 }
 
 // MiddlewareWrapperN wraps a middleware function that accepts a ContextHandler.
-func MiddlewareWrapperN(handler func(ctx ContextHandler)) func(http.Handler) http.Handler {
+// It's now a method on MyAPIServer to access the Logger and DNS.
+func (api *MyAPIServer) MiddlewareWrapperN(handler func(ctx ContextHandler)) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			// Create a ContextHandler with the provided ResponseWriter and Request
+			// Create a ContextHandler with the provided ResponseWriter, Request, Logger, and DNS
 			ctx := ContextHandler{
 				Writer:  w,
 				Request: r,
+				Logger:  api.Logger, // Now we use the Logger from the API server
+				DNS:     api.Dns,    // Now we use the DNS from the API server
 			}
 
 			// Call the middleware function with the ContextHandler
