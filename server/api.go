@@ -214,6 +214,7 @@ func SetAppName(opts *OptionalParams, api *MyAPIServer) {
 
 func SetDNS(opts *OptionalParams, api *MyAPIServer) {
 	if opts.Dns == "" {
+		api.Dns = "" // Set a default value or leave empty as per your requirement
 	} else {
 		api.Dns = opts.Dns
 	}
@@ -258,8 +259,21 @@ func (api *MyAPIServer) handlerWrapper(handler func(ContextHandler)) http.Handle
 }
 
 func (api *MyAPIServer) AddPrefix(prefix string) {
+	if len(prefix) == 0 {
+		api.Logger.Fatal("prefix cannot be empty")
+		return
+	}
+	
 	v1 := http.NewServeMux()
-	prefix2 := prefix[:len(prefix)-1]
+	
+	// Only remove trailing character if prefix has more than one character
+	var prefix2 string
+	if len(prefix) > 1 {
+		prefix2 = prefix[:len(prefix)-1]
+	} else {
+		prefix2 = ""
+	}
+	
 	v1.Handle(prefix, http.StripPrefix(prefix2, api.Serv.ServeMux))
 	api.Serv.PrefixServeMux = v1
 }
@@ -291,11 +305,20 @@ func (api *MyAPIServer) Run() error {
 }
 
 func (api *MyAPIServer) ShutDown(err error, prodServer *http.Server) error {
-	tc, _ := context.WithTimeout(context.Background(), 30*time.Second)
-	err = prodServer.Shutdown(tc)
-	if err != nil {
-		api.Logger.Println(err)
-		return err
+	// Create context with timeout and store the cancel function
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	
+	// Ensure we call cancel when the function returns to prevent context leak
+	defer cancel()
+	
+	// Attempt to shut down the server gracefully
+	shutdownErr := prodServer.Shutdown(ctx)
+	if shutdownErr != nil {
+		api.Logger.Println("Server shutdown error:", shutdownErr)
+		// Only return the new error if there wasn't already one
+		if err == nil {
+			return shutdownErr
+		}
 	}
 	return err
 }
